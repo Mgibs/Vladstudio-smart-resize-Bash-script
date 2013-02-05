@@ -1,0 +1,149 @@
+#!/bin/bash
+
+# Smartresize
+# For information on installing, usage, requirements, visit
+# https://github.com/vladstudio/vladstudio-bash-smart-resize
+
+
+
+
+## check for requirements
+if ! type -p convert > /dev/null; then
+    echo 'Error: imagemagick not installed (convert command not found).'
+    exit 1
+fi
+if ! type -p bc > /dev/null; then
+    echo 'Error: bc not installed.'
+    exit 1
+fi
+if ! type -p python > /dev/null; then
+    echo 'Error: python not installed.'
+    exit 1
+fi
+
+## shortcut for round
+function round() {
+	echo $(python -c "print int(round(${1}))")
+}
+
+function help()
+{
+cat << EOF
+Smartresize: resize an image using smart sharpen methods.
+OPTIONS:
+	 -?      Show this message
+	 -i      input file (required)
+	 -w      target width
+	 -h      target height
+	 -o      output file (optional)
+	 -q      output JPEG quality (optional)
+	 -a      additional imagemagick arguments (use with double quotes and caution)
+Either width or height must be provided. 
+Input file is replaced if no output file provided.
+EOF
+}
+
+## defaults
+quality=100
+additional=
+## read variables from command line arguments
+while getopts “?i:w:h:o:q:a:” OPTION
+do
+	case ${OPTION} in
+	i)
+		in_file=${OPTARG}
+		;;
+	w)
+		out_w=${OPTARG}
+		;;
+	h)
+		out_h=${OPTARG}
+		;;
+	o)
+		out_file=${OPTARG}
+		;;
+	q)
+		quality=${OPTARG}
+		;;
+	a)
+		additional=${OPTARG}
+		;;
+	?)
+		help
+		exit 1
+		;;
+	esac
+done
+
+## validate input
+if [ ! -f "${in_file}" ]; then
+	echo "Error: Source file '${in_file}' not found." >&2
+	exit 1
+fi;
+
+if [ "${out_w}" == "" -a "${out_h}" == "" ]; then
+	echo "Error: Either target width or height is required." >&2
+	exit 1
+fi;
+
+unsharp="-unsharp 0.44x0.44+0.44+0.008"
+arguments="-interpolate bicubic -filter Lagrange"
+
+## read source image
+in_w=$(identify -format "%w" "${in_file}")
+in_h=$(identify -format "%h" "${in_file}")
+
+## optionally calculate missing width/height
+if [[ "${out_w}" == "" && "${out_h}" != "" ]] ; then
+	out_w=$(echo "(${out_h} / ${in_h}) * ${in_w}" | bc -l)
+	out_w=$(round ${out_w})
+fi
+if [[ "${out_w}" != "" && "${out_h}" == "" ]] ; then
+	out_h=$(echo "(${out_w} / ${in_w}) * ${in_h}" | bc -l)
+	out_h=$(round ${out_h})
+fi
+
+## check not to scale up
+if [ "${out_w}" -gt "${in_w}" -a "${out_h}" -gt "${in_h}" ] ; then
+	echo "Error: scaling up not supported." >&2
+	exit 1
+fi
+
+## calculate ratio and intermediate w/h
+ratio1=$(echo "${out_w} / ${in_w}" | bc -l)
+ratio2=$(echo "${out_h} / ${in_h}" | bc -l)
+ratio=$(python -c "print max(${ratio1},${ratio2})")
+
+crop_w=$(echo "${out_w} / ${ratio}" | bc -l)
+crop_w=$(round ${crop_w})
+crop_h=$(echo "${out_h} / ${ratio}" | bc -l)
+crop_h=$(round ${crop_h})
+
+# crop source image to target proportions
+arguments="${arguments} -gravity center -crop ${crop_w}x${crop_h}+0+0 "
+
+
+current_w=${in_w}
+compare_to_w=$(echo "${out_w} * 1.25" | bc -l)
+compare_to_w=$(round ${compare_to_w})
+
+## Here goes the trick! Resize image 80%, sharpen (x3), then repeat until target size is reached.
+
+while [ "${current_w}" -gt ${compare_to_w} ]; do
+	current_w=$(echo "${current_w} * 0.80" | bc -l)
+	current_w=$(round ${current_w})
+	arguments="${arguments} -resize 80% +repage ${unsharp} ${unsharp} ${unsharp} "
+done
+
+## final resize
+arguments="${arguments} -resize ${out_w}x${out_h}! +repage ${unsharp} ${unsharp} ${unsharp} -density 72x72 +repage"
+
+echo "Resizing ${in_file} ..."
+## mogrify or convert (depending on out_file)
+if [ "${out_file}" == "" ]; then
+mogrify ${arguments} ${additional} "${in_file}"
+else
+convert "${in_file}" ${arguments} -quality ${quality} ${additional} "${out_file}"
+fi
+
+

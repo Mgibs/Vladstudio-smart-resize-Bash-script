@@ -122,23 +122,21 @@ crop_h=$(round ${crop_h})
 # crop source image to target proportions
 arguments="${arguments} -gravity center -crop ${crop_w}x${crop_h}+0+0 "
 
-
-current_w=${in_w}
-compare_to_w=$(echo "${out_w} * 1.25" | bc -l)
+current_w=${crop_w}
+compare_to_w=$(echo "${out_w} * 1.5" | bc -l)
 compare_to_w=$(round ${compare_to_w})
 
-## Here goes the trick! Resize image 80%, sharpen (x3), then repeat until target size is reached.
-
+## Here goes the trick! Resize image 75%, sharpen, then repeat until target size is reached.
 while [ "${current_w}" -gt ${compare_to_w} ]; do
-	current_w=$(echo "${current_w} * 0.80" | bc -l)
+	current_w=$(echo "${current_w} * 0.75" | bc -l)
 	current_w=$(round ${current_w})
-	arguments="${arguments} -resize 80% +repage ${unsharp} ${unsharp} ${unsharp} "
+	arguments="${arguments} -resize 75% +repage ${unsharp} ${unsharp} ${unsharp} "
 done
 
 ## final resize
 arguments="${arguments} -resize ${out_w}x${out_h}! +repage ${unsharp} ${unsharp} ${unsharp} -density 72x72 +repage"
 
-echo "Resizing ${in_file} ..."
+echo "Resizing '${in_file}' to '${out_file}' ..."
 ## mogrify or convert (depending on out_file)
 if [ "${out_file}" == "" ]; then
 mogrify ${arguments} ${additional} "${in_file}"

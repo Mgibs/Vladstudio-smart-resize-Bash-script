@@ -136,7 +136,7 @@ done
 ## final resize
 arguments="${arguments} -resize ${out_w}x${out_h}! +repage ${unsharp} ${unsharp} ${unsharp} -density 72x72 +repage"
 
-echo "Resizing '${in_file}' to '${out_file}' ..."
+echo "Resizing ${in_file} ..."
 ## mogrify or convert (depending on out_file)
 if [ "${out_file}" == "" ]; then
 mogrify ${arguments} ${additional} "${in_file}"

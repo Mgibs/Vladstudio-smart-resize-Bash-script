@@ -18,7 +18,7 @@ You can simply put the script into the folder with image(s) and run:
 
 Or you can put it in some folder included in your PATH (f.e. `/usr/bin/'):
 
-	sudo cp smartresize /usr/bin/
+	sudo wget -O /usr/bin/smartresize https://raw.github.com/vladstudio/Vladstudio-smart-resize-Bash-script/master/smartresize
 	sudo chmod +x /usr/bin/smartresize
 
 ...and then run from any folder:
